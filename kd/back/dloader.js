@@ -48,7 +48,7 @@ async function downloadCatalogs() {
   // Etsitään kuvastot sivulta
   const catalogSelector = 'article, .flyer-item, a[href*="leaflets"], a[href*="tarjousleht"]';
   await page.waitForSelector(catalogSelector, { timeout: 10000 }).catch(() => {
-    console.log('Элементы каталогов не найдены по селектору.');
+
   });
 
  // Kerätään linkit kaikista löydetyistä lohkoista

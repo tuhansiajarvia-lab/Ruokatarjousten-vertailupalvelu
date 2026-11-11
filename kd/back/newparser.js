@@ -17,12 +17,12 @@ if (!fs.existsSync(dbDir)) {
 }
 
 const dbPath = path.join(dbDir, 'products.db');
-console.log(`Путь к файлу БД: ${dbPath}`);
+console.log(`Tietokantatiedoston polku: ${dbPath}`);
 
 // Tietokannan alustus
 const db = new Database(dbPath);
 
-// Luodaan tietokantataulu rakenteelle, jota server.js odottaa
+// Luodaan tietokantataulu rakenteelle, joka tukee kaikkia kenttiä
 db.exec(`
     CREATE TABLE IF NOT EXISTS products (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,19 +31,21 @@ db.exec(`
         page INTEGER,
         product_name TEXT,
         price REAL,
+        original_price REAL,
+        discount_percent INTEGER,
+        offer_type TEXT,
         unit TEXT,
         discount TEXT,
+        raw_text TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(name, price)
+        UNIQUE(product_name, price)
     )
 `);
 
-
-
-// Luodaan SQL-lisäyskysely
+// Luodaan SQL-lisäyskysely nimetyillä parametreillä
 const insertStmt = db.prepare(`
-    INSERT OR REPLACE INTO products (name, price, unit, discount) 
-    VALUES (@name, @price, @unit, @discount)
+    INSERT OR REPLACE INTO products (store, catalog_folder, page, product_name, price, original_price, discount_percent, offer_type, unit, discount, raw_text) 
+    VALUES (@store, @catalog_folder, @page, @product_name, @price, @original_price, @discount_percent, @offer_type, @unit, @discount, @raw_text)
 `);
 
 // Yhdistetään paikalliseen Ollamaan
@@ -83,6 +85,8 @@ async function parsePageAndSale(filePath) {
     - "original_price": number or null (old price before discount, if present)
     - "discount_percent": number or null (discount percentage as a number, e.g. 14 for -14%, or null)
     - "offer_type": string or null (e.g. "Tarjous", "Club", or null)
+    - "unit": string or null (unit of measure like "kg", "l", "kpl", or null)
+    - "discount": string or null (e.g. "-20%" or text discount info, or null)
     `;
 
     const response = await deepseek.chat.completions.create({
@@ -121,13 +125,15 @@ async function parsePageAndSale(filePath) {
                 for (const item of items) {
                     insertStmt.run({
                         store: 'lidl',
-                        catalog_folder: path.basename(path.dirname(filePath)), // catalogin kansion nimi
-                        page: 1, // номер страницы
+                        catalog_folder: path.basename(path.dirname(filePath)),
+                        page: 1,
                         product_name: item.product_name || item.name || 'Unknown',
                         price: typeof item.price === 'number' ? item.price : 0,
-                        original_price: item.original_price || null,
-                        discount_percent: item.discount_percent || null,
+                        original_price: typeof item.original_price === 'number' ? item.original_price : null,
+                        discount_percent: typeof item.discount_percent === 'number' ? item.discount_percent : null,
                         offer_type: item.offer_type || null,
+                        unit: item.unit || '',
+                        discount: item.discount || '',
                         raw_text: content
                     });
                 }
